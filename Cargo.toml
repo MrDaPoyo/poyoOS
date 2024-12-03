@@ -2,12 +2,19 @@
 name = "poyoOS"
 version = "0.1.0"
 edition = "2021"
-
+authors = ["Poyo <poyo@poyo.study, MrDaPoyo on GitHub>"]
 [profile.dev]
 panic = "abort"
+
+[lib]
+path = "src/main.rs"
+name = "poyoos"
+crate-type = ["staticlib"]
 
 [profile.release]
 panic = "abort"
 
 [dependencies]
-bootloader = "0.9"
+multiboot = "0.8.0"
+volatile = "0.6.1"
+font8x8 = { version = "0.3", default-features = false }

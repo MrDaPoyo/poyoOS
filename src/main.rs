@@ -1,9 +1,14 @@
-// main.rs
-
+// Disable linking to the rust standard library
+// This is needed because the standard library relies on system functions.
 #![no_std]
 #![no_main]
 
-use core::panic::PanicInfo;
+// mod gdt
+use core::{panic::PanicInfo};
+use multiboot::information::PAddr;
+
+mod multiboot_fb;
+mod text;
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
@@ -11,16 +16,10 @@ fn panic(_info: &PanicInfo) -> ! {
 }
 
 #[no_mangle]
-pub extern "C" fn _start() -> ! {
-    loop {
-        const VGA_BUFFER: *mut u8 = 0xb8000 as *mut u8;
-
-        let hello = b"Hello, World!";
-        for (i, &byte) in hello.iter().enumerate() {
-            unsafe {
-                *VGA_BUFFER.offset(i as isize * 2) = byte;
-                *VGA_BUFFER.offset(i as isize * 2 + 1) = 0xb; // Light cyan color
-            }
-        }
-    }
+pub extern "C" fn kmain(info_ptr: PAddr) -> ! {
+    // vga_buffer::print_something();
+    let multiboot_struct = multiboot_fb::use_multiboot(info_ptr);
+    let mut fb = multiboot_fb::get_framebuffer(multiboot_struct);
+    fb.boot_message();
+    loop {}
 }
