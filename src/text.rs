@@ -1,12 +1,16 @@
 use core::ptr;
 use font8x8::legacy::BASIC_LEGACY;
 
+const LINE_SPACING: usize = 12;
+
 pub struct Framebuffer {
     pub framebuffer: *mut u32,
     pub width: usize,
     pub height: usize,
+    pub scroll_y: usize,
     pub cursor_y: usize,
     pub cursor_x: usize,
+    pub bg_color: u32,
 }
 
 impl Framebuffer {
@@ -27,6 +31,23 @@ impl Framebuffer {
         }
     }
 
+    fn scroll_up(&mut self, lines: usize, color: u32) {
+        for y in 0..self.height - lines {
+            for x in 0..self.width {
+                let color = unsafe { ptr::read_volatile(self.framebuffer.add((y + lines) * self.width + x)) };
+                self.draw_pixel(x, y, color);
+            }
+        }
+
+        for y in self.height - lines..self.height {
+            for x in 0..self.width {
+                self.draw_pixel(x, y, color);
+            }
+        }
+        self.scroll_y += lines;
+        self.cursor_y -= lines;
+    }
+
     // Draw a character at (x, y) using the specified color
     fn draw_char(&self, x: usize, y: usize, c: char, color: u32) {
         let font = BASIC_LEGACY[c as u8 as usize];
@@ -42,29 +63,26 @@ impl Framebuffer {
     // Print a string to the framebuffer
     pub fn print_string(&mut self, text: &str, color: u32) {
         self.cursor_x = 0;
-            for c in text.chars() {
-                // Stop printing if we exceed the screen self.height
-                if self.cursor_y + 8 > self.height {
-                    break;
+        let lines = text.split('\n');
+        for line in lines {
+            for c in line.chars() {
+                // Stop printing if we exceed the screen height
+                if self.cursor_y + LINE_SPACING > self.height + self.scroll_y {
+                    self.scroll_up(LINE_SPACING, self.bg_color);
                 }
-
-                if c == '\n' {
-                    *&mut self.cursor_x = 0;
-                    *&mut self.cursor_y += 8;
-                } else {
-                    self.draw_char(self.cursor_x, self.cursor_y, c, color);
-                    *&mut self.cursor_x += 8;
-
-                    // Wrap to the next line if we exceed the screen self.width
-                    if self.cursor_x >= self.width {
-                        *&mut self.cursor_x = 0;
-                        *&mut self.cursor_y += 8;
-                    }
+    
+                self.draw_char(self.cursor_x, self.cursor_y, c, color);
+                self.cursor_x += 8;
+    
+                // Move to the next line if we exceed the screen width
+                if self.cursor_x + 8 > self.width {
+                    self.cursor_x = 0;
+                    self.cursor_y += LINE_SPACING;
                 }
-
-                // Debug: Track cursor position
-                // Comment out in release builds
-                // println!("&mut self.cursor_x: {}, &mut self.cursor_y: {}", &mut self.cursor_x, &mut self.cursor_y);
+            }
+            // Move to the next line after finishing the current line
+            self.cursor_x = 0;
+            self.cursor_y += LINE_SPACING;
         }
     }
 
@@ -83,8 +101,6 @@ impl Framebuffer {
 
         // Print the logo
         self.print_string(logo, color);
-        // Reset cursor position after printing the logo
-        self.cursor_x = 0;
     }
 
     fn fill_screen(&self, colors: &[u32]) {
